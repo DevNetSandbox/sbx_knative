@@ -1,0 +1,12 @@
+- name: Install Istio
+  command: "{{ item }}"
+  args:
+    chdir: "/root/istio-0.8.0/"
+  with_items:
+    - kubectl apply -f install/kubernetes/istio-demo.yaml
+  register: install_istio
+  ignore_errors: True
+- debug:
+    var: install_istio.results
+- pause: 
+    seconds: 35

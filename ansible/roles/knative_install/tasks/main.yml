@@ -1,0 +1,12 @@
+- name: Install Knative
+  command: "{{ item }}"
+  args:
+    chdir: "/root/knative/"
+  with_items:
+    - kubectl label namespace default istio-injection=enabled
+    - kubectl apply -f ./release.yaml
+    - kubectl apply -f ./kaniko.yaml
+  register: install_knative
+  ignore_errors: True
+- debug:
+    var: install_knative.results

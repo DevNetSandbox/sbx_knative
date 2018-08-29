@@ -1,0 +1,17 @@
+[master]
+10.10.20.21
+
+[nodes]
+10.10.20.[22:24]
+
+[cluster:children]
+master
+nodes
+
+[cluster:vars]
+cluster_name=kubeadm_1
+
+[devbox]
+10.10.20.20
+
+

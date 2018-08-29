@@ -1,0 +1,21 @@
+# setup Kubernetes UI (Dashboard)
+- name: setup Kubernetes Dashboard
+  command: "{{ item }}"
+  with_items:
+    - kubectl --kubeconfig /etc/kubernetes/admin.conf create -f ./kube-dashboard.yaml
+  register: kube_dashboard
+  ignore_errors: True
+- debug:
+    var: kube_dashboard.results
+
+
+- name: wait 60s for dashboard ready
+  pause:
+    seconds: 60
+
+- name: probe dashboard status
+  shell: kubectl --kubeconfig /etc/kubernetes/admin.conf get pod -n kube-system | grep dashboard | awk '{print $3}'
+  register: podresult
+  ignore_errors: True
+- debug:
+    var: podresult.stdout

@@ -1,0 +1,110 @@
+- hosts: localhost
+  gather_facts: false
+  roles:
+    - role: admission_token
+      tags:
+        - token
+  tasks:
+    - debug:
+        var: admission_token
+      tags:
+        - token
+
+- hosts: cluster
+  become: true
+  roles:
+    - role: nodes_prep
+      tags:
+        - master
+        - nodes          
+
+- hosts: master
+  become: true
+  roles:
+    - role: kubeadm_install
+      tags:
+        - master
+  tasks:
+    - debug:
+        var: kubeadm_install.stdout_lines
+
+- hosts: devbox
+  become: true
+  tasks:
+    - name: copy certs to devbox
+      copy:
+        src: /root/admin.conf
+        dest: /root/
+        mode: 0666
+      register: certs_dup
+      tags:
+        - devbox
+    - debug:
+       var: certs_dup.stdout_lines
+   
+# Implements Step 3 of http://kubernetes.io/docs/getting-started-guides/kubeadm/
+- hosts: nodes
+  become: true
+  tasks:
+    - name: Join nodes to cluster
+      command: kubeadm join --token {{ hostvars.localhost.admission_token }} {{  master_ip }}:6443 --ignore-preflight-errors=all --discovery-token-unsafe-skip-ca-verification 
+      args:
+        creates: /etc/kubernetes/kubelet.conf
+      register: node_join
+      ignore_errors: true
+    - debug:
+        var: node_join.stdout_lines
+
+    - name: reload kubelet service
+      command: service kubelet restart 
+      register: node_kubelet
+      ignore_errors: true
+      tags:
+        - nodes
+        - master
+
+- hosts: master
+  become: true
+  tasks:
+    - name: install weave network plugin
+      shell: kubectl apply -f "https://cloud.weave.works/k8s/net?k8s-version=$(kubectl version | base64 | tr -d '\n')"
+    - debug:
+        var: contiv_install.stdout_lines
+
+- hosts: master
+  become: true
+  tasks:
+    - name: start kubectl proxy
+      command: kubectl proxy --kubeconfig /etc/kubernetes/admin.conf --address=0.0.0.0 --port=8001 --accept-hosts=^*$ &
+      async: 2592000
+      poll: 0
+      register: kube_proxy
+      tags:
+        - master
+
+    - name: Wait for Kube-DNS pod running
+      shell: "kubectl --kubeconfig /etc/kubernetes/admin.conf get pods --all-namespaces | grep kube-dns"
+      register: result
+      until: result.stdout.find("Running") != -1
+      retries: 30
+      delay: 10   
+      tags:
+        - master
+
+- hosts: master
+  become: true
+  roles: 
+      - role: kube_dashboard
+        tags: master
+
+- hosts: master
+  become: true
+  roles: 
+      - role: istio_install 
+        tags: master
+
+- hosts: master
+  become: true
+  roles:
+      - role: knative_install
+        tags: master

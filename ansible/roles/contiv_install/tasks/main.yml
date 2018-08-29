@@ -1,0 +1,30 @@
+---
+- name: Install contiv installer
+  command: "{{ item }}"
+  args: 
+    chdir: "/root/contiv-{{ contiv_ver }}"
+  with_items:
+    - ./install/k8s/uninstall.sh -n {{ master_ip }} etcd-cleanup
+    - rm -rf /var/etcd/contiv-data
+    - ./install/k8s/install.sh -n {{ master_ip }}
+  register: pod_network
+  ignore_errors: True
+  tags:
+    - master
+
+- debug:
+   var: pod_network.results
+
+- wait_for:
+   port: 9999
+   delay: 10
+
+- name: Create Contiv default-net
+  command: netctl net create --subnet=10.96.0.0/12 --gateway=10.96.0.1 default-net 
+  register: create_network
+  ignore_errors: True
+  tags:
+     - master
+
+- debug:
+   var: create_network.stdout_lines
